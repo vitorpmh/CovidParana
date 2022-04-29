@@ -3,9 +3,9 @@ from BaseIBGE import *
 
 # Estamos importando a base de dados do parana com os recuperados ja organizados na df_parana que é uma planilha de
 # todos os ifectados da Covid no paraná
-from dadosParana import df_parana
+from dadosParana import df_recalculada
 
-TodasBaseDados = [df_parana, Macrorregional_Noroeste, Macrorregional_Norte, Macrorregional_Leste,
+TodasBaseDados = [df_recalculada, Macrorregional_Noroeste, Macrorregional_Norte, Macrorregional_Leste,
                   Macrorregional_Oeste, regional_saude_1, regional_saude_2, regional_saude_3, regional_saude_4,
                   regional_saude_5, regional_saude_6, regional_saude_7, regional_saude_8, regional_saude_9,
                   regional_saude_10, regional_saude_11, regional_saude_12, regional_saude_13, regional_saude_14,

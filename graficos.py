@@ -1,9 +1,10 @@
 import pandas as pd
 import plotly.graph_objects as go
 
-# Estamos importando a funcao inf_atuais() que retorna a base de dados que tem as colunas total de mortos, infectados e
-# recuperado. E os infectados atuais.
-from dadosParana import inf_atuais , df_parana
+# Estamos importando a funcao inf_atuais() que retorna a base de dados que
+# tem as colunas total de mortos, infectados e recuperado. E os infectados
+# atuais.
+from dadosParana import inf_atuais
 
 # criando as 4 figuras como objeto global
 fig = go.Figure()

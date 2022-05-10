@@ -1,3 +1,5 @@
 # Ignored files
 .DS_Store
 *.csv
+/Testes/latex.png
+/Testes/dale.png

@@ -115,7 +115,7 @@ def otimizar(latencia, t0, S, I, R, D):
     try:
 
         # Create a new model
-        m = gp.Model("mip1")
+        m = gp.Model("mip1") #qp
         #        m.params.NonConvex = 2
         #        m.params.NumericFocus=1
         m.params.LogToConsole = 0
@@ -127,10 +127,10 @@ def otimizar(latencia, t0, S, I, R, D):
         t = t0
         obj = 0.0
         while t0 <= t < t0 + latencia:
-            if t == 0:
+            if t == 0: #s(t-2) = 0, s(t-1)=0
                 obj += (S[t]) ** 2 + (I[t]) ** 2 + (R[t]) ** 2 + (D[t]) ** 2
                 # print(obj)
-            elif t == 1:
+            elif t == 1: #s(t-2) = 0
                 obj += ((S[t] + 2 * beta * S[t - 1] * I[t - 1] / N) ** 2
                         + (I[t] - 2 * (beta * S[t - 1] * I[t - 1] / N - gammaR * I[t - 1] - gammaD * I[t - 1])) ** 2
                         + (R[t] - 2 * gammaR * I[t - 1]) ** 2
@@ -211,57 +211,58 @@ def solver(latencia, t0, len, S, I, R, D):
 
 
 colors = ['b', 'g', 'r', 'c', 'm', 'y']
-plt.figure(figsize=(12, 12))
-ax = plt.axes()
+
+fig, ((ax, ax1), (ax2, ax3)) = plt.subplots(nrows=2, ncols=2, figsize=(17.80, 10))
 
 
+# ax = plt.subplots(2,2)
+# ax1 = plt.subplots(2,2)
+# ax2 = plt.subplots(2,2)
+# ax3 = plt.subplots(2,2)
+tamanho_bolinha = 6
 def graficos_londrina_optimix(latencia, t0, length, S, I, R, D):
     S, I, R, D, t = solver(latencia, t0, length, S, I, R, D)
-    # Plot the data on three separate curves for S(t), I(t) and R(t)
-    # fig = plt.figure(facecolor='w', figsize=[14, 7])
-    # ax = fig.subplots(1)#, facecolor='#dddddd', axisbelow=True)
-    # ax.plot(t, S, 'b', alpha=0.75, lw=2, label='Susceptible')
-    # ax.plot(t, E, 'c', alpha=0.75, lw=2, label='Exposed')
-    print(colors[t0 % len(colors)])
-    ax.plot(t + t0, I, alpha=0.75, lw=2, label='Infected', color=colors[t0 % len(colors)])
-    # ax.plot(t, R, 'g', alpha=0.75, lw=2, label='Recovered with immunity')
-    # ax.plot(t, D, 'r', alpha=0.75, lw=2, label='Dead')
-    ax.scatter(t, inf_atuais_londrina(df, latencia, tempo_ate_diag)[1], alpha=0.75, lw=0.1, label='Infectados Londrina')
-    # ax.set_xlabel('Time /days')
-    # ax.set_ylabel('Number (1000s)')
-    ax.set_ylim(0, 10000)
+    #suscetiveis
+    ax.plot((t+ t0)[:latencia+1], S[:latencia+1], 'b', alpha=0.75, lw=2,
+            color=colors[t0 % len(colors)])
+    ax.scatter(t, inf_atuais_londrina(df, latencia, tempo_ate_diag)[0],
+                alpha=0.75, s=tamanho_bolinha)
+    ax.set_ylim(350000, 500000)
     ax.set_xlim(500, 600)
+    ax.legend(['Susceptible', 'Infectados Londrina'],loc='best')
 
+    #infectados
+    ax1.plot((t + t0)[:latencia+1], I[:latencia+1], alpha=0.75, lw=2,
+             color=colors[t0 % len(colors)])
+    ax1.scatter(t, inf_atuais_londrina(df, latencia, tempo_ate_diag)[1],
+                alpha=0.75, s=tamanho_bolinha)
+    ax1.set_ylim(0, 10000)
+    ax1.set_xlim(500, 600)
+    ax1.legend(['Infected', 'Infectados Londrina'],loc='best')
 
-# latencia = 14
-# S, I, R, D = inf_atuais_londrina(df, latencia, tempo_ate_diag)
-# N = 569733.0
-# # Para o dia 70 com latencia = 14
-# i = 70
-# otimizar(latencia, i, S, I, R, D)
-# # print(inf_atuais_londrina(df,latencia,tempo_ate_diag)[3][i:i+latencia])
-# inf_atuais_londrina(df, latencia, tempo_ate_diag)[2][i:i + latencia].plot()
-# inf_atuais_londrina(df, latencia, tempo_ate_diag)[3][i:i + latencia].plot()
-# plt.savefig('Teste_mesa_grafico_base_dia_70_latencia_14.png')
-# plt.show()
-#
-# # Para o dia 68 com latencia = 3
-# latencia = 3
-# S, I, R, D = inf_atuais_londrina(df, latencia, tempo_ate_diag)
-# N = 569733.0
-# i = 68
-# otimizar(latencia, i, S, I, R, D)
-# # print(londrina_inf_atuais.rec_total_dia[i:i+latencia])
-# inf_atuais_londrina(df, latencia, tempo_ate_diag)[2][i:i + latencia].plot()
-# inf_atuais_londrina(df, latencia, tempo_ate_diag)[3][i:i + latencia].plot()
-# plt.savefig('Teste_mesa_grafico_base_dia_68_latencia_3.png')
-# plt.show()
+    #Recuperados
+    ax2.plot((t+ t0)[:latencia+1], R[:latencia+1], 'g', alpha=0.75, lw=2, label='',
+             color=colors[t0 % len(colors)])
+    ax2.scatter(t, inf_atuais_londrina(df, latencia, tempo_ate_diag)[2],
+                alpha=0.75, s=tamanho_bolinha, label='')
+    ax2.set_ylim(0, 200000)
+    ax2.set_xlim(500, 600)
+    ax2.legend(['Recovered with immunity', 'Infectados Londrina'], loc='best')
 
+    #mortos
+    ax3.plot((t+ t0)[:latencia+1], D[:latencia+1], 'r', alpha=0.75, lw=2,
+             color=colors[t0 % len(colors)])
+    ax3.scatter(t, inf_atuais_londrina(df, latencia, tempo_ate_diag)[3],
+                alpha=0.75, s=tamanho_bolinha)
+    ax3.set_ylim(0, 4000)
+    ax3.set_xlim(500, 600)
+    ax3.legend(['Dead', 'Infectados Londrina'],loc='best')
 
-latencia = 14
+latencia = 10 #T
 S, I, R, D = inf_atuais_londrina(df, latencia, tempo_ate_diag)
 N = 569733.0
-for i in range(500, 600, 14):
-    graficos_londrina_optimix(latencia, i, 761, S, I, R, D)
-    # plt.show()
+
+for i in range(500, 600, 10):
+    graficos_londrina_optimix(latencia, i, len(S), S, I, R, D)
+
 plt.show()

@@ -89,32 +89,58 @@ def recalcular_df(df, latencia, tempo_ate_diag):
     return df_recalculada
 
 
-df_parana = recalcular_df(df, latencia, tempo_ate_diag)
+# df_parana = recalcular_df(df, latencia, tempo_ate_diag)
+#
+# df_recalculada = df_parana
+#
+# londrina_confPorDia = df_recalculada[df_recalculada['IBGE_RES_PR']
+#     .isin([4113700])][
+#     ['nova_data_infec', 'nova_data_rec', 'DATA_OBITO']].apply(
+#     pd.Series.value_counts).expanding(min_periods=1).sum()
+#
+# londrina_inf_atuais = inf_atuais(londrina_confPorDia)
+#
+# # suscetiveis = N - Infectados totais
+# londrina_inf_atuais['suscetiveis'] = 569733 - londrina_inf_atuais['inf_total_dia']
+# londrina_inf_atuais['expostos'] = londrina_inf_atuais['inf_atuais'] * 2
+#
+# #print(londrina_inf_atuais)
+#
+# #print(londrina_inf_atuais.columns)
+#
+# S = londrina_inf_atuais.suscetiveis
+# E = londrina_inf_atuais.expostos
+# I = londrina_inf_atuais.inf_atuais
+# R = londrina_inf_atuais.rec_total_dia
+# D = londrina_inf_atuais.morto_total_dia
+#
+# N = 569733.0
 
-df_recalculada = df_parana
+def inf_atuais_londrina(df, latencia, tempo_ate_diag):
+    df_recalculada = recalcular_df(df, latencia, tempo_ate_diag)
 
-londrina_confPorDia = df_recalculada[df_recalculada['IBGE_RES_PR']
-    .isin([4113700])][
-    ['nova_data_infec', 'nova_data_rec', 'DATA_OBITO']].apply(
-    pd.Series.value_counts).expanding(min_periods=1).sum()
+    londrina_confPorDia = df_recalculada[
+        df_recalculada['IBGE_RES_PR'].isin([4113700])
+    ]
+    londrina_confPorDia = londrina_confPorDia[
+        ['nova_data_infec', 'nova_data_rec', 'DATA_OBITO']
+    ]
+    londrina_confPorDia = londrina_confPorDia.apply(pd.Series.value_counts).expanding(min_periods=1).sum()
 
-londrina_inf_atuais = inf_atuais(londrina_confPorDia)
+    londrina_inf_atuais = inf_atuais(londrina_confPorDia)
 
-# suscetiveis = N - Infectados totais
-londrina_inf_atuais['suscetiveis'] = 569733 - londrina_inf_atuais['inf_total_dia']
-londrina_inf_atuais['expostos'] = londrina_inf_atuais['inf_atuais'] * 2
+    # suscetiveis = N - Infectados totais
+    londrina_inf_atuais['suscetiveis'] = 569733 \
+                                         - londrina_inf_atuais['inf_total_dia']
+    londrina_inf_atuais['expostos'] = londrina_inf_atuais['inf_atuais'] * 0.7
 
-#print(londrina_inf_atuais)
+    # print(londrina_inf_atuais)
 
-#print(londrina_inf_atuais.columns)
-
-S = londrina_inf_atuais.suscetiveis
-E = londrina_inf_atuais.expostos
-I = londrina_inf_atuais.inf_atuais
-R = londrina_inf_atuais.rec_total_dia
-D = londrina_inf_atuais.morto_total_dia
-
-N = 569733.0
+    # print(londrina_inf_atuais.columns)
+    return londrina_inf_atuais.suscetiveis, londrina_inf_atuais.expostos,\
+           londrina_inf_atuais.inf_atuais, \
+           londrina_inf_atuais.rec_total_dia, \
+           londrina_inf_atuais.morto_total_dia
 
 
 def otimizar(latencia, t0, S, E, I, R, D):
@@ -126,10 +152,10 @@ def otimizar(latencia, t0, S, E, I, R, D):
         #        m.params.NumericFocus=1
         m.params.LogToConsole = 0
         # Create variables
-        beta = m.addVar(vtype=GRB.CONTINUOUS,ub=GRB.INFINITY,lb=-GRB.INFINITY, name="beta")
-        sigma = m.addVar(vtype=GRB.CONTINUOUS,ub=GRB.INFINITY,lb=-GRB.INFINITY, name="sigma")
-        gammaR = m.addVar(vtype=GRB.CONTINUOUS,ub=GRB.INFINITY,lb=-GRB.INFINITY, name="gammaR")
-        gammaD = m.addVar(vtype=GRB.CONTINUOUS,ub=GRB.INFINITY,lb=-GRB.INFINITY, name="gammaD")
+        beta = m.addVar(vtype=GRB.CONTINUOUS,ub=GRB.INFINITY, name="beta")
+        sigma = m.addVar(vtype=GRB.CONTINUOUS,ub=GRB.INFINITY, name="sigma")
+        gammaR = m.addVar(vtype=GRB.CONTINUOUS,ub=GRB.INFINITY, name="gammaR")
+        gammaD = m.addVar(vtype=GRB.CONTINUOUS,ub=GRB.INFINITY, name="gammaD")
 
         t = t0
         obj = 0.0
@@ -157,10 +183,10 @@ def otimizar(latencia, t0, S, E, I, R, D):
         m.setObjective(obj, GRB.MINIMIZE)
 
         # Add constraint:
-        # m.addConstr(beta >= 0.0, "c0")
-        # m.addConstr(sigma >= 0.0, "c1")
-        # m.addConstr(gammaR >= 0.0, "c2")
-        # m.addConstr(gammaD >= 0.0, "c3")
+        m.addConstr(beta >= 0.0, "c0")
+        m.addConstr(sigma >= 0.0, "c1")
+        m.addConstr(gammaR >= 0.0, "c2")
+        m.addConstr(gammaD >= 0.0, "c3")
 
         # Optimize model
         m.optimize()
@@ -222,33 +248,33 @@ def solver(latencia, t0, len, S, E, I, R, D):
     return S, E, I, R, D, t
 
 
-colors = ['b','g','r','c','m','y']
-plt.figure(figsize=(12, 12))
-ax = plt.axes()
-def graficos_londrina_optimix(latencia, t0, length, S, E, I, R, D):
-    S, E, I, R, D, t = solver(latencia, t0, length, S, E, I, R, D)
-    # Plot the data on three separate curves for S(t), I(t) and R(t)
-    #fig = plt.figure(facecolor='w', figsize=[14, 7])
-    #ax = fig.subplots(1)#, facecolor='#dddddd', axisbelow=True)
-    # ax.plot(t, S, 'b', alpha=0.75, lw=2, label='Susceptible')
-    # ax.plot(t, E, 'c', alpha=0.75, lw=2, label='Exposed')
-    print(colors[t0 % len(colors)])
-    ax.plot(t+t0, I, alpha=0.75, lw=2, label='Infected',color=colors[t0 % len(colors)])
-    # ax.plot(t, R, 'g', alpha=0.75, lw=2, label='Recovered with immunity')
-    # ax.plot(t, D, 'r', alpha=0.75, lw=2, label='Dead')
-    ax.scatter(t, londrina_inf_atuais.inf_atuais, alpha=0.75, lw=0.1, label='Infectados Londrina')
-    # ax.set_xlabel('Time /days')
-    # ax.set_ylabel('Number (1000s)')
-    ax.set_ylim(0,10000)
-    ax.set_xlim(500, 600)
-    # ax.yaxis.set_tick_params(length=0)
-    # ax.xaxis.set_tick_params(length=0)
-    # ax.grid(b=True, which='major', c='w', lw=2, ls='-')
-    # legend = ax.legend()
-    # legend.get_frame().set_alpha(0.5)
-    # for spine in ('top', 'right', 'bottom', 'left'):
-    #     ax.spines[spine].set_visible(False)
-    #return fig
+# colors = ['b','g','r','c','m','y']
+# plt.figure(figsize=(12, 12))
+# ax = plt.axes()
+# def graficos_londrina_optimix(latencia, t0, length, S, E, I, R, D):
+#     S, E, I, R, D, t = solver(latencia, t0, length, S, E, I, R, D)
+#     # Plot the data on three separate curves for S(t), I(t) and R(t)
+#     #fig = plt.figure(facecolor='w', figsize=[14, 7])
+#     #ax = fig.subplots(1)#, facecolor='#dddddd', axisbelow=True)
+#     # ax.plot(t, S, 'b', alpha=0.75, lw=2, label='Susceptible')
+#     # ax.plot(t, E, 'c', alpha=0.75, lw=2, label='Exposed')
+#     print(colors[t0 % len(colors)])
+#     ax.plot(t+t0, I, alpha=0.75, lw=2, label='Infected',color=colors[t0 % len(colors)])
+#     # ax.plot(t, R, 'g', alpha=0.75, lw=2, label='Recovered with immunity')
+#     # ax.plot(t, D, 'r', alpha=0.75, lw=2, label='Dead')
+#     ax.scatter(t, londrina_inf_atuais.inf_atuais, alpha=0.75, lw=0.1, label='Infectados Londrina')
+#     # ax.set_xlabel('Time /days')
+#     # ax.set_ylabel('Number (1000s)')
+#     ax.set_ylim(0,10000)
+#     ax.set_xlim(500, 600)
+#     # ax.yaxis.set_tick_params(length=0)
+#     # ax.xaxis.set_tick_params(length=0)
+#     # ax.grid(b=True, which='major', c='w', lw=2, ls='-')
+#     # legend = ax.legend()
+#     # legend.get_frame().set_alpha(0.5)
+#     # for spine in ('top', 'right', 'bottom', 'left'):
+#     #     ax.spines[spine].set_visible(False)
+#     #return fig
 
 #i=50
 # for i in range(len(londrina_inf_atuais.index)-latencia):
@@ -262,7 +288,65 @@ def graficos_londrina_optimix(latencia, t0, length, S, E, I, R, D):
 
 
 #for i in range(len(londrina_inf_atuais.index)-latencia):
-for i in range(500,600,5):
-    graficos_londrina_optimix(latencia, i, len(londrina_inf_atuais.index), S, E, I, R, D)
-    #plt.show()
+# for i in range(500,600,5):
+#     graficos_londrina_optimix(latencia, i, len(londrina_inf_atuais.index), S, E, I, R, D)
+#     #plt.show()
+# plt.show()
+
+colors = ['b', 'g', 'r', 'c', 'm', 'y']
+
+fig, ((ax, ax1), (ax2, ax3), (ax4, ax5)) = plt.subplots(nrows=3, ncols=2, figsize=(17.80, 10))
+
+
+tamanho_bolinha = 6
+def graficos_londrina_optimix(latencia, t0, length, S, E, I, R, D):
+    S, E, I, R, D, t = solver(latencia, t0, length, S, E, I, R, D)
+    #suscetiveis
+    ax.plot((t+ t0)[:latencia+1], S[:latencia+1], 'b', alpha=0.75, lw=2)
+    ax.scatter(t, inf_atuais_londrina(df, latencia, tempo_ate_diag)[0],
+                alpha=0.75, s=tamanho_bolinha)
+    ax.set_ylim(350000, 500000)
+    ax.set_xlim(500, 600)
+    ax.legend(['Susceptible', 'Infectados Londrina'],loc='best')
+
+    #exposed
+    ax1.plot((t + t0)[:latencia + 1], E[:latencia + 1], 'b', alpha=0.75, lw=2)
+    ax1.scatter(t, inf_atuais_londrina(df, latencia, tempo_ate_diag)[1],
+               alpha=0.75, s=tamanho_bolinha)
+    ax1.set_ylim(0, 10000)
+    ax1.set_xlim(500, 600)
+    ax1.legend(['Exposed', 'Infectados Londrina'], loc='best')
+
+    #infectados
+    ax2.plot((t + t0)[:latencia+1], I[:latencia+1], alpha=0.75, lw=2)
+    ax2.scatter(t, inf_atuais_londrina(df, latencia, tempo_ate_diag)[2],
+                alpha=0.75, s=tamanho_bolinha)
+    ax2.set_ylim(0, 10000)
+    ax2.set_xlim(500, 600)
+    ax2.legend(['Infected', 'Infectados Londrina'],loc='best')
+
+    #Recuperados
+    ax3.plot((t+ t0)[:latencia+1], R[:latencia+1], 'g', alpha=0.75, lw=2)
+    ax3.scatter(t, inf_atuais_londrina(df, latencia, tempo_ate_diag)[3],
+                alpha=0.75, s=tamanho_bolinha, label='')
+    ax3.set_ylim(0, 200000)
+    ax3.set_xlim(500, 600)
+    ax3.legend(['Recovered with immunity', 'Infectados Londrina'], loc='best')
+
+    #mortos
+    ax4.plot((t+ t0)[:latencia+1], D[:latencia+1], 'r', alpha=0.75, lw=2)
+    ax4.scatter(t, inf_atuais_londrina(df, latencia, tempo_ate_diag)[4],
+                alpha=0.75, s=tamanho_bolinha)
+    ax4.set_ylim(0, 4000)
+    ax4.set_xlim(500, 600)
+    ax4.legend(['Dead', 'Infectados Londrina'],loc='best')
+
+latencia = 14 #T
+S, E, I, R, D = inf_atuais_londrina(df, latencia, tempo_ate_diag)
+N = 569733.0
+
+for i in range(500, 600, 14):
+    graficos_londrina_optimix(latencia, i, len(S), S, E, I, R, D)
+
 plt.show()
+

@@ -3,12 +3,17 @@ import numpy as np
 import pandas as pd
 import gurobipy as gp
 import matplotlib.pyplot as plt
-
+import plotly.express as px
+import plotly.graph_objects as go
 from gurobipy import GRB
 
 from scipy.integrate import odeint
 
+
 tempo_ate_diag = 5
+latencia = 14
+
+df_cidades = pd.read_csv('df_cidades.csv')
 
 df = pd.read_csv('df_2022_04_04.csv', sep=';', low_memory=False)
 
@@ -91,34 +96,40 @@ def recalcular_df(df, latencia, tempo_ate_diag):
                         by=['DATA_DIAGNOSTICO']).reset_index(drop=True)
     return df_recalculada
 
+df_recalculada = recalcular_df(df, latencia, tempo_ate_diag)
 
-def inf_atuais_londrina(df, latencia, tempo_ate_diag):
-    df_recalculada = recalcular_df(df, latencia, tempo_ate_diag)
 
-    londrina_confPorDia = df_recalculada[
-        df_recalculada['IBGE_RES_PR'].isin([4106902])#londrina = 4113700
-    ]
-    londrina_confPorDia = londrina_confPorDia[
-        ['nova_data_infec', 'nova_data_rec', 'DATA_OBITO']
-    ]
-    londrina_confPorDia = londrina_confPorDia.apply(pd.Series.value_counts).expanding(min_periods=1).sum()
 
-    londrina_inf_atuais = inf_atuais(londrina_confPorDia)
+
+def inf_atuais(df, cidades ,populacao, latencia):
+    confPorDia = df[df['IBGE_RES_PR'].isin(cidades)]
+    confPorDia = confPorDia[['nova_data_infec', 'nova_data_rec', 'DATA_OBITO']]
+    confPorDia = confPorDia.apply(pd.Series.value_counts).expanding(min_periods=1).sum()
+
+
+
+    first_case = df[datas(df)].min().min()
+    last_case = df[datas(df)].max().max()
+    new_date_range = pd.date_range(first_case, last_case, freq="D")
+    confPorDia = confPorDia.reindex(new_date_range)
+    confPorDia = confPorDia.ffill().bfill()
+
+    inf_atuais = confPorDia.fillna(0)
+    inf_atuais.columns = ['inf_total_dia', 'rec_total_dia', 'morto_total_dia']
+    inf_atuais['inf_atuais'] = inf_atuais.apply(
+        lambda row: row['inf_total_dia'] - row['morto_total_dia'] - row
+            ['rec_total_dia'], axis=1)
+    inf_atuais['Data'] = inf_atuais.index
 
     # suscetiveis = N - Infectados totais
-    londrina_inf_atuais['suscetiveis'] = 569733 \
-                                         - londrina_inf_atuais['inf_total_dia']
-    londrina_inf_atuais['expostos'] = londrina_inf_atuais['inf_atuais'] * 2
+    inf_atuais['suscetiveis'] = populacao - inf_atuais['inf_total_dia']
 
-    # print(londrina_inf_atuais)
+    return inf_atuais.suscetiveis, \
+           inf_atuais.inf_atuais, \
+           inf_atuais.rec_total_dia, \
+           inf_atuais.morto_total_dia
 
-    # print(londrina_inf_atuais.columns)
-    return londrina_inf_atuais.suscetiveis, londrina_inf_atuais.inf_atuais, \
-           londrina_inf_atuais.rec_total_dia, \
-           londrina_inf_atuais.morto_total_dia
-
-
-def otimizar(latencia, t0, S, I, R, D):
+def otimizar(populacao, latencia, t0, S, I, R, D):
     try:
 
         # Create a new model
@@ -138,8 +149,8 @@ def otimizar(latencia, t0, S, I, R, D):
                 obj += (S[t]) ** 2 + (I[t]) ** 2 + (R[t]) ** 2 + (D[t]) ** 2
                 # print(obj)
             elif t == 1: #s(t-2) = 0
-                obj += ((S[t] + 2 * beta * S[t - 1] * I[t - 1] / N) ** 2
-                        + (I[t] - 2 * (beta * S[t - 1] * I[t - 1] / N
+                obj += ((S[t] + 2 * beta * S[t - 1] * I[t - 1] / populacao) ** 2
+                        + (I[t] - 2 * (beta * S[t - 1] * I[t - 1] / populacao
                                        - gammaR * I[t - 1]
                                        - gammaD * I[t - 1])) ** 2
                         + (R[t] - 2 * gammaR * I[t - 1]) ** 2
@@ -147,9 +158,9 @@ def otimizar(latencia, t0, S, I, R, D):
                 # print(obj)
             else:
                 obj += ((S[t] -
-                         (S[t - 2] - 2 * beta * S[t - 1] * I[t - 1] / N)) ** 2
+                         (S[t - 2] - 2 * beta * S[t - 1] * I[t - 1] / populacao)) ** 2
                         + (I[t] - (I[t - 2] + 2 *
-                                   (beta * S[t - 1] * I[t - 1] / N
+                                   (beta * S[t - 1] * I[t - 1] / populacao
                                     - gammaR * I[t - 1]
                                     - gammaD * I[t - 1]))) ** 2
                         + (R[t] - (R[t - 2] + 2 * gammaR * I[t - 1])) ** 2
@@ -191,19 +202,17 @@ def otimizar(latencia, t0, S, I, R, D):
     return constantes
 
 
-# print(otimizar(7, 750, S, E, I, R, D))
 
-
-def solver(latencia, t0, len, S, I, R, D):
-    N = 569733.0
+def solver(populacao, latencia, t0, lenght, S, I, R, D):
+    N = populacao
 
     I0, R0, D0 = I[t0], R[t0], D[t0]
 
     S0 = N - I0 - R0 - D0
 
-    beta, gammaR, gammaD = otimizar(latencia, t0, S, I, R, D)
+    beta, gammaR, gammaD = otimizar(populacao, latencia, t0, S, I, R, D)
 
-    t = np.linspace(0, len, len)
+    t = np.linspace(0, lenght, lenght)
 
     # The SIRD model differential equations.
     def deriv(y, t, N, beta, gammaR, gammaD):
@@ -222,57 +231,64 @@ def solver(latencia, t0, len, S, I, R, D):
     return S, I, R, D, t
 
 
-colors = ['b', 'g', 'r', 'c', 'm', 'y']
+tamanho_bolinha = 2
+def graficos_otimizado(fig, df, cidades, populacao, latencia, t0):
+    S, I, R, D = inf_atuais(df ,cidades ,populacao ,latencia)
+    df_length = len(S)
+    Ss, Is, Rs, Ds, t = solver(populacao, latencia, t0, df_length, S, I, R, D)
 
-fig, ((ax, ax1), (ax2, ax3)) = plt.subplots(nrows=2, ncols=2, figsize=(17.80, 10))
+    # suscetiveis
+    #     ax.plot((t+ t0), Is, 'b', alpha=0.75, lw=2,
+    #             color=colors[t0 % len(colors)])
+
+    fig.add_traces(go.Scatter(x=( t+ t0) ,y=Is, mode='lines'))
+    fig.add_traces \
+        (go.Scatter(x=t ,y=I ,marker_size=tamanho_bolinha ,mode='markers'))
 
 
-tamanho_bolinha = 6
-def graficos_londrina_optimix(latencia, t0, length, S, I, R, D):
-    S, I, R, D, t = solver(latencia, t0, length, S, I, R, D)
-    print(t0)
-    print(t.size)
-    #suscetiveis
-    ax.plot((t+ t0)[:latencia], S[:latencia], 'b', alpha=0.75, lw=2,
-            color=colors[t0 % len(colors)])
-    ax.scatter(t, inf_atuais_londrina(df, latencia, tempo_ate_diag)[0],
-                alpha=0.75, s=tamanho_bolinha)
-    ax.set_ylim(350000, 500000)
-    ax.set_xlim(100, 200)
-    ax.legend(['Susceptible', 'Infectados Londrina'],loc='best')
 
-    #infectados
-    ax1.plot((t + t0)[:latencia], I[:latencia], alpha=0.75, lw=2,
-             color=colors[t0 % len(colors)])
-    ax1.scatter(t, inf_atuais_londrina(df, latencia, tempo_ate_diag)[1],
-                alpha=0.75, s=tamanho_bolinha)
-    ax1.set_ylim(0, 10000)
-    ax1.set_xlim(100, 200)
-    ax1.legend(['Infected', 'Infectados Londrina'],loc='best')
+fig = go.Figure()
+fig1 = go.Figure()
+fig2 = go.Figure()
+fig3 = go.Figure()
 
-    #Recuperados
-    ax2.plot((t+ t0)[:latencia], R[:latencia], 'g', alpha=0.75, lw=2,
-             label='', color=colors[t0 % len(colors)])
-    ax2.scatter(t, inf_atuais_londrina(df, latencia, tempo_ate_diag)[2],
-                alpha=0.75, s=tamanho_bolinha, label='')
-    ax2.set_ylim(0, 200000)
-    ax2.set_xlim(100, 200)
-    ax2.legend(['Recovered with immunity', 'Infectados Londrina'], loc='best')
+for i in range(500,501,1):#range(500, 600, 20)
+    for cod_ibge in df_cidades.codigos_ibge:
+        populacao = df_cidades[df_cidades.codigos_ibge == cod_ibge][
+            'populacao'].item()
+        print(df_cidades[df_cidades.codigos_ibge == cod_ibge][
+                  'nome_cidades'].item())
+        graficos_otimizado(fig, df_recalculada, [cod_ibge], populacao,
+                           latencia, i)
 
-    #mortos
-    ax3.plot((t+ t0)[:latencia], D[:latencia], 'r', alpha=0.75, lw=2,
-             color=colors[t0 % len(colors)])
-    ax3.scatter(t, inf_atuais_londrina(df, latencia, tempo_ate_diag)[3],
-                alpha=0.75, s=tamanho_bolinha)
-    ax3.set_ylim(0, 4000)
-    ax3.set_xlim(100, 200)
-    ax3.legend(['Dead', 'Infectados Londrina'],loc='best')
 
-latencia = 10 #T
-S, I, R, D = inf_atuais_londrina(df, latencia, tempo_ate_diag)
-N = 569733.0
+    for regiao in df_cidades.columns[4:]:
+        lista_cidades_por_regiao = list(
+            df_cidades[df_cidades[f'{regiao}'] == True].codigos_ibge)
+        if regiao == "cidades_grande":
+            for cities in lista_cidades_por_regiao:
+                populacao = df_cidades[df_cidades.codigos_ibge == cities][
+                    'populacao'].item()
+                graficos_otimizado(fig1, df_recalculada, [cities], populacao,
+                                   latencia, i)
+                print(cities)
 
-for i in range(110, 111, 1):
-    graficos_londrina_optimix(latencia, i, len(S), S, I, R, D)
+        elif "macro" in regiao:
+            populacao = df_cidades[df_cidades[regiao] == True][
+                'populacao'].sum()
+            graficos_otimizado(fig2, df_recalculada, lista_cidades_por_regiao,
+                               populacao, latencia, i)
+            print(regiao)
 
-plt.show()
+        else:
+            populacao = df_cidades[df_cidades[regiao] == True]['populacao'].sum()
+            graficos_otimizado(fig3, df_recalculada, lista_cidades_por_regiao,
+                               populacao, latencia, i)
+            print(regiao)
+
+
+figs = [fig,fig1,fig2,fig3]
+for fig in figs:
+    fig.show()
+
+

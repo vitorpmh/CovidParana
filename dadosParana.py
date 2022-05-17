@@ -91,52 +91,36 @@ tempo_ate_diag = 5
 
 # Aqui arrumamos a coluna dos recuperados e salvamos na variavel df_recalculada
 if 'df_recalculada' not in locals():
-    # selecionamos somente as colunas que possuem formato
-    # de data e numeros(codigosIBGE).
     df_recalculada = df.select_dtypes(include=['datetime', 'number'])
 
-    # criamos uma nova coluna para arrumar os infectados com base no inicio
-    # de sintomas, se o tempo entre DIS e DD for >= 5 dias trocamos por
-    # DIS + 5, caso contrario por DD. Funçao np.where que diz: onde temos isso,
-    # troque por isso caso verdadeiro, ou troque por isso caso falso.
+    DIS = df_recalculada['DATA_INICIO_SINTOMAS']
+    DD = df_recalculada['DATA_DIAGNOSTICO']
+    DR = df_recalculada['DATA_RECUPERADO_DIVULGACAO']
+    DO = df_recalculada['DATA_OBITO']
+
     df_recalculada['nova_data_infec'] = np.where(
-        (df_recalculada['DATA_DIAGNOSTICO']
-         - df_recalculada['DATA_INICIO_SINTOMAS']).dt.days >= 5,
-        (df_recalculada.DATA_INICIO_SINTOMAS
-         + datetime.timedelta(days=(tempo_ate_diag))),  # verdadeiro
-        df_recalculada.DATA_DIAGNOSTICO)  # falso
+        ((DD - DIS).dt.days >= tempo_ate_diag) | (
+                    (DD - DIS).dt.days < 0) | DIS.isna(),
+        DD - datetime.timedelta(days=(tempo_ate_diag)),  # verdadeiro
+        DIS)  # falso np.datetime64("NaT")
 
-    # Agora utilixamos do tempo médio entre a DIS e a DD que é o tempo ate diag
-    # dias para transladar a coluna para 5 dias antes
-    df_recalculada['nova_data_infec'] = (df_recalculada['nova_data_infec']
-                                         - datetime.timedelta(
-                                            days=(tempo_ate_diag)
-                                         ))
+    NDI = df_recalculada['nova_data_infec']
 
-    # data_recuperado diz a respeito do dia que a pessoa possa ter se
-    # recuperado. Isso acontece de 7 a 10 dias apos
-    # o incio de sintomas (tempo retirado de artigos cientificos)
-    data_recuperado = df_recalculada.DATA_DIAGNOSTICO + datetime.timedelta(
-        days=latencia - tempo_ate_diag)
-
-    # aqui comecamos a restruturaço da coluna de recuperados utilizamos
-    # a funçao np.where que diz: onde temos isso,
-    # troque por isso caso verdadeiro, ou troque por isso caso falso.
-
-    mask = ((df_recalculada.DATA_OBITO.isna()) &
-        ((df_recalculada.DATA_RECUPERADO_DIVULGACAO.isna() &
-          ((data_recuperado) < data_mais_recente)) |
-         (df_recalculada.DATA_RECUPERADO_DIVULGACAO >
-          (data_recuperado))))
+    df_recalculada['nova_data_infec'] = np.where(
+        DO < DD,
+        DO - datetime.timedelta(days=(tempo_ate_diag)),  # verdadeiro
+        NDI)  # falso np.datetime64("NaT")
 
     df_recalculada['nova_data_rec'] = np.where(
-        mask,
-        data_recuperado,  # verdadeiro
-        df_recalculada.DATA_RECUPERADO_DIVULGACAO # falso
-    )
+        DO.isna() & (DR.isna() | (DR < NDI) | (DR < DD) | (
+                    (DR - NDI).dt.days >= latencia)),
+        NDI + datetime.timedelta(days=latencia),  # verdadeiro
+        DR)  # falso np.datetime64("NaT")
 
-    df_recalculada = df_recalculada.sort_values(by=['DATA_DIAGNOSTICO']
-                                                ).reset_index(drop=True)
+    NDR = df_recalculada['nova_data_rec']
+
+    df_recalculada = df_recalculada.sort_values(
+        by=['nova_data_infec']).reset_index(drop=True)
 
 # criando a base df_parana para não corromper a df_recalculada
 #df_parana = df_recalculada

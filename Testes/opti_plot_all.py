@@ -110,7 +110,8 @@ def inf_atuais(df, cidades ,populacao, latencia):
     last_case = df[datas(df)].max().max()
     new_date_range = pd.date_range(first_case, last_case, freq="D")
     confPorDia = confPorDia.reindex(new_date_range)
-    confPorDia = confPorDia.ffill().bfill()
+    confPorDia[:1] = 0
+    confPorDia = confPorDia.ffill()
 
     inf_atuais = confPorDia.fillna(0)
     inf_atuais.columns = ['inf_total_dia', 'rec_total_dia', 'morto_total_dia']
@@ -209,7 +210,8 @@ def solver(populacao, latencia, t0, lenght, S, I, R, D):
     S0 = N - I0 - R0 - D0
 
     beta, gammaR, gammaD = otimizar(populacao, latencia, t0, S, I, R, D)
-
+    print(N, ',', S0, ',', I0, ',', R0, ',', D0, ',', beta, ',', gammaR, ',',
+          gammaD)
     t = np.linspace(0, lenght, lenght)
 
     # The SIRD model differential equations.
@@ -250,39 +252,39 @@ fig1 = go.Figure()
 fig2 = go.Figure()
 fig3 = go.Figure()
 
-for i in range(500,501,1):#range(500, 600, 20)
-    for cod_ibge in df_cidades.codigos_ibge:
-        populacao = df_cidades[df_cidades.codigos_ibge == cod_ibge][
-            'populacao'].item()
-        print(df_cidades[df_cidades.codigos_ibge == cod_ibge][
-                  'nome_cidades'].item())
-        graficos_otimizado(fig, df_recalculada, [cod_ibge], populacao,
-                           latencia, i)
+for i in range(0,1,1):#range(500, 600, 20)
+    # for cod_ibge in df_cidades.codigos_ibge:
+    #     populacao = df_cidades[df_cidades.codigos_ibge == cod_ibge][
+    #         'populacao'].item()
+    #     print(df_cidades[df_cidades.codigos_ibge == cod_ibge][
+    #               'nome_cidades'].item())
+    #     graficos_otimizado(fig, df_recalculada, [cod_ibge], populacao,
+    #                        latencia, i)
 
 
-    # for regiao in df_cidades.columns[4:]:
-    #     lista_cidades_por_regiao = list(
-    #         df_cidades[df_cidades[f'{regiao}'] == True].codigos_ibge)
-    #     if regiao == "cidades_grande":
-    #         for cities in lista_cidades_por_regiao:
-    #             populacao = df_cidades[df_cidades.codigos_ibge == cities][
-    #                 'populacao'].item()
-    #             graficos_otimizado(fig1, df_recalculada, [cities], populacao,
-    #                                latencia, i)
-    #             print(cities)
-    #
-    #     elif "macro" in regiao:
-    #         populacao = df_cidades[df_cidades[regiao] == True][
-    #             'populacao'].sum()
-    #         graficos_otimizado(fig2, df_recalculada, lista_cidades_por_regiao,
-    #                            populacao, latencia, i)
-    #         print(regiao)
-    #
-    #     else:
-    #         populacao = df_cidades[df_cidades[regiao] == True]['populacao'].sum()
-    #         graficos_otimizado(fig3, df_recalculada, lista_cidades_por_regiao,
-    #                            populacao, latencia, i)
-    #         print(regiao)
+    for regiao in df_cidades.columns[4:]:
+        lista_cidades_por_regiao = list(
+            df_cidades[df_cidades[f'{regiao}'] == True].codigos_ibge)
+        if regiao == "cidades_grande":
+            for cities in lista_cidades_por_regiao:
+                populacao = df_cidades[df_cidades.codigos_ibge == cities][
+                    'populacao'].item()
+                graficos_otimizado(fig1, df_recalculada, [cities], populacao,
+                                   latencia, i)
+                print(cities)
+
+        elif "macro" in regiao:
+            populacao = df_cidades[df_cidades[regiao] == True][
+                'populacao'].sum()
+            graficos_otimizado(fig2, df_recalculada, lista_cidades_por_regiao,
+                               populacao, latencia, i)
+            print(regiao)
+
+        else:
+            populacao = df_cidades[df_cidades[regiao] == True]['populacao'].sum()
+            graficos_otimizado(fig3, df_recalculada, lista_cidades_por_regiao,
+                               populacao, latencia, i)
+            print(regiao)
 
 
 figs = [fig,fig1,fig2,fig3]
